@@ -1,0 +1,8 @@
+{
+  "name": "cv-generator-ats",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Génère un CV optimisé ATS à partir d'une annonce, via le CLI Claude",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" }
+}

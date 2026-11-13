@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV Generator ATS</title>
+<style>
+  :root { --bg:#f5f5f4; --card:#fff; --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#1d4ed8; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 28px; border-bottom:1px solid var(--line); background:var(--card); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns: minmax(360px, 460px) 1fr; gap:20px; padding:20px 28px; align-items:start; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .card h2 { margin:0 0 10px; font-size:15px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  textarea, input[type=url], input[type=text] { width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:inherit; font-size:14px; background:#fff; }
+  textarea { resize:vertical; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row input { flex:1; }
+  button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:8px 12px; font:inherit; font-size:14px; cursor:pointer; }
+  button:hover { background:#fafaf9; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; width:100%; padding:12px; margin-top:12px; }
+  button.primary:disabled { opacity:.6; cursor:wait; }
+  .hint { font-size:12px; color:var(--muted); }
+  .status { font-size:13px; margin-top:8px; min-height:1em; }
+  .status.err { color:var(--bad); } .status.ok { color:var(--ok); }
+  .score { font-size:32px; font-weight:700; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); }
+  .chip.ok { background:#f0fdf4; border-color:#bbf7d0; color:var(--ok); }
+  .chip.no { background:#fef2f2; border-color:#fecaca; color:var(--bad); }
+  ul.tips { margin:4px 0; padding-left:18px; font-size:13px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .empty { color:var(--muted); text-align:center; padding:80px 20px; }
+
+  /* ---- Le CV : mise en page compatible ATS (1 colonne, texte réel, titres standard) ---- */
+  #cv { background:#fff; width:210mm; min-height:297mm; margin:0 auto; padding:16mm 17mm; box-shadow:0 2px 12px rgba(0,0,0,.08);
+        font-family: Calibri, Arial, Helvetica, sans-serif; font-size:10.5pt; line-height:1.35; color:#000; outline:none; }
+  #cv h1 { font-size:20pt; margin:0; }
+  #cv .titre { font-size:12.5pt; font-weight:600; margin:2px 0 4px; }
+  #cv .contact { font-size:9.5pt; margin-bottom:6px; }
+  #cv h2 { font-size:11.5pt; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #000; margin:12px 0 5px; padding-bottom:2px; }
+  #cv h3 { font-size:10.5pt; margin:7px 0 0; }
+  #cv .meta { font-size:9.5pt; margin:0 0 2px; }
+  #cv ul { margin:2px 0 4px; padding-left:16px; }
+  #cv li { margin:1px 0; }
+  #cv p { margin:2px 0; }
+
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } #cv { width:100%; } }
+  @media print {
+    @page { size:A4; margin:0; }
+    body { background:#fff; }
+    header, #left, .toolbar { display:none !important; }
+    main { display:block; padding:0; }
+    #cv { box-shadow:none; margin:0; width:auto; min-height:0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>CV Generator ATS</h1>
+  <p>Colle le lien d'une annonce → Claude adapte ton CV pour passer les filtres ATS. Tout tourne en local avec ton compte Claude.</p>
+</header>
+
+<main>
+  <section id="left">
+    <div class="card">
+      <h2>1. Ton profil complet (CV de base)</h2>
+      <p class="hint">Mets tout : expériences, missions, chiffres, outils, formations, langues, contact. Plus c'est complet, mieux Claude peut choisir. Rien ne sera inventé au-delà.</p>
+      <textarea id="profile" rows="12" placeholder="Prénom Nom — email — téléphone — ville — LinkedIn&#10;&#10;EXPÉRIENCES&#10;Intitulé — Entreprise (Ville) — 2022 à aujourd'hui&#10;- ...&#10;&#10;FORMATION ..."></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="saveProfile">Enregistrer le profil</button>
+        <input type="file" id="importFile" accept=".txt,.md" hidden>
+        <button type="button" onclick="document.getElementById('importFile').click()">Importer .txt / .md</button>
+      </div>
+      <div class="status" id="profileStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. L'annonce</h2>
+      <label for="jobUrl">Lien de l'annonce</label>
+      <div class="row">
+        <input type="url" id="jobUrl" placeholder="https://www.welcometothejungle.com/fr/companies/.../jobs/...">
+        <button id="fetchBtn">Lire</button>
+      </div>
+      <label for="jobText">Texte de l'annonce (rempli automatiquement, modifiable — ou colle-le ici si le site bloque la lecture)</label>
+      <textarea id="jobText" rows="8"></textarea>
+      <label for="instructions">Consignes en plus (optionnel)</label>
+      <input type="text" id="instructions" placeholder="ex : CV en 1 page, mettre en avant mon expérience en gestion d'équipe…">
+      <button class="primary" id="generateBtn">Générer le CV adapté</button>
+      <div class="status" id="genStatus"></div>
+    </div>
+
+    <div class="card" id="analyse" hidden>
+      <h2>Analyse ATS</h2>
+      <div class="row"><div class="score" id="score"></div><div class="hint">score de correspondance estimé<br><span id="target"></span></div></div>
+      <label>Mots-clés de l'annonce présents dans ton CV</label>
+      <div class="chips" id="kwOk"></div>
+      <label>Mots-clés manquants (absents de ton profil — donc non ajoutés)</label>
+      <ul class="tips" id="kwMissing"></ul>
+      <label>Conseils</label>
+      <ul class="tips" id="tips"></ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="toolbar" id="toolbar" hidden>
+      <button id="pdfBtn">⬇ PDF (Imprimer → Enregistrer en PDF)</button>
+      <button id="docBtn">⬇ Word (.doc)</button>
+      <button id="txtBtn">⬇ Texte brut (.txt)</button>
+      <button id="copyBtn">Copier le texte</button>
+      <span class="hint" style="align-self:center">Le CV est modifiable : clique dedans pour corriger.</span>
+    </div>
+    <div id="cvWrap"><div class="empty">Ton CV adapté apparaîtra ici.</div></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const has = v => Array.isArray(v) ? v.some(has) : v && typeof v === "object" ? Object.values(v).some(has) : !!String(v ?? "").trim();
+const list = v => Array.isArray(v) ? v : [];
+let lastResult = null;
+
+const LABELS = {
+  fr: { resume:"Profil", competences:"Compétences", experiences:"Expérience professionnelle", formation:"Formation", certifications:"Certifications", langues:"Langues" },
+  en: { resume:"Summary", competences:"Skills", experiences:"Professional Experience", formation:"Education", certifications:"Certifications", langues:"Languages" },
+  es: { resume:"Perfil", competences:"Competencias", experiences:"Experiencia profesional", formation:"Formación", certifications:"Certificaciones", langues:"Idiomas" },
+  de: { resume:"Profil", competences:"Kenntnisse", experiences:"Berufserfahrung", formation:"Ausbildung", certifications:"Zertifizierungen", langues:"Sprachen" },
+};
+
+function setStatus(el, msg, kind = "") { el.textContent = msg; el.className = "status " + kind; }
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) } : {});
+  const data = await r.json().catch(() => ({ error: "Réponse invalide du serveur" }));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+// --- Profil ---
+api("/api/profile").then(d => { $("profile").value = d.profile; });
+$("saveProfile").onclick = async () => {
+  try { await api("/api/profile", { profile: $("profile").value }); setStatus($("profileStatus"), "Profil enregistré ✓", "ok"); }
+  catch (e) { setStatus($("profileStatus"), e.message, "err"); }
+};
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $("profile").value = await f.text();
+  setStatus($("profileStatus"), "Fichier importé — pense à enregistrer.", "ok");
+};
+
+// --- Annonce ---
+let fetchedUrl = "";
+async function fetchJob() {
+  const url = $("jobUrl").value.trim();
+  if (!url) throw new Error("Mets un lien ou colle le texte de l'annonce.");
+  setStatus($("genStatus"), "Lecture de l'annonce…");
+  const { text } = await api("/api/fetch-job", { url });
+  $("jobText").value = text;
+  fetchedUrl = url;
+  setStatus($("genStatus"), "Annonce récupérée ✓ (vérifie le texte si besoin)", "ok");
+}
+$("fetchBtn").onclick = () => fetchJob().catch(e => setStatus($("genStatus"), e.message, "err"));
+
+// --- Génération ---
+$("generateBtn").onclick = async () => {
+  const btn = $("generateBtn");
+  try {
+    btn.disabled = true;
+    if (!$("profile").value.trim()) throw new Error("Remplis d'abord ton profil (étape 1).");
+    await api("/api/profile", { profile: $("profile").value });
+    const url = $("jobUrl").value.trim();
+    // Lien renseigné et pas encore lu (ou changé) → on lit l'annonce automatiquement
+    if (url && url !== fetchedUrl) await fetchJob();
+    else if (!$("jobText").value.trim()) await fetchJob();
+    const t0 = Date.now();
+    const tick = () => setStatus($("genStatus"), `Claude adapte ton CV… ${Math.round((Date.now() - t0) / 1000)} s (≈ 30 s à 2 min)`);
+    tick(); const timer = setInterval(tick, 1000);
+    try {
+      lastResult = await api("/api/generate", { profile: $("profile").value, jobText: $("jobText").value, instructions: $("instructions").value });
+    } finally { clearInterval(timer); }
+    render(lastResult);
+    setStatus($("genStatus"), "CV généré ✓", "ok");
+  } catch (e) {
+    setStatus($("genStatus"), e.message, "err");
+  } finally { btn.disabled = false; }
+};
+
+function render(r) {
+  const cv = r.cv || {}, L = LABELS[r.langue] || LABELS.fr, c = cv.contact || {};
+  const join = (arr, sep) => arr.filter(has).map(esc).join(sep);
+  let h = `<h1>${esc(cv.nom)}</h1>`;
+  if (has(cv.titre)) h += `<div class="titre">${esc(cv.titre)}</div>`;
+  const contact = join([c.email, c.telephone, c.localisation, c.linkedin, c.site], " | ");
+  if (contact) h += `<div class="contact">${contact}</div>`;
+  if (has(cv.resume)) h += `<h2>${L.resume}</h2><p>${esc(cv.resume)}</p>`;
+  if (has(cv.competences)) {
+    h += `<h2>${L.competences}</h2>`;
+    for (const g of list(cv.competences)) if (has(g.elements))
+      h += `<p>${has(g.categorie) ? `<strong>${esc(g.categorie)} :</strong> ` : ""}${join(list(g.elements), ", ")}</p>`;
+  }
+  if (has(cv.experiences)) {
+    h += `<h2>${L.experiences}</h2>`;
+    for (const x of list(cv.experiences)) {
+      h += `<h3>${esc(x.poste)}${has(x.entreprise) ? " — " + esc(x.entreprise) : ""}</h3>`;
+      const dates = join([x.debut, x.fin], " – ");
+      const meta = [esc(x.lieu), dates].filter(Boolean).join(" | ");
+      if (meta) h += `<p class="meta">${meta}</p>`;
+      if (has(x.puces)) h += `<ul>${list(x.puces).filter(has).map(p => `<li>${esc(p)}</li>`).join("")}</ul>`;
+    }
+  }
+  if (has(cv.formation)) {
+    h += `<h2>${L.formation}</h2>`;
+    for (const f of list(cv.formation)) {
+      h += `<h3>${esc(f.diplome)}${has(f.etablissement) ? " — " + esc(f.etablissement) : ""}</h3>`;
+      const meta = join([f.lieu, f.annee], " | ");
+      if (meta) h += `<p class="meta">${meta}</p>`;
+      if (has(f.details)) h += `<p>${esc(f.details)}</p>`;
+    }
+  }
+  if (has(cv.certifications)) h += `<h2>${L.certifications}</h2><ul>${list(cv.certifications).filter(has).map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  if (has(cv.langues)) h += `<h2>${L.langues}</h2><p>${list(cv.langues).filter(has).map(l => esc(l.langue) + (has(l.niveau) ? " (" + esc(l.niveau) + ")" : "")).join(", ")}</p>`;
+  for (const s of list(cv.autres)) if (has(s.elements))
+    h += `<h2>${esc(s.titre)}</h2><ul>${list(s.elements).filter(has).map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+
+  $("cvWrap").innerHTML = `<article id="cv" contenteditable="true" spellcheck="true">${h}</article>`;
+  $("toolbar").hidden = false;
+
+  const a = r.analyse_ats || {};
+  $("analyse").hidden = false;
+  const s = Number(a.score_estime) || 0;
+  $("score").textContent = s + "/100";
+  $("score").style.color = s >= 75 ? "var(--ok)" : s >= 50 ? "var(--warn)" : "var(--bad)";
+  $("target").textContent = [r.poste_cible, r.entreprise].filter(has).join(" — ");
+  $("kwOk").innerHTML = list(a.mots_cles_couverts).map(k => `<span class="chip ok">${esc(k)}</span>`).join("") || '<span class="hint">—</span>';
+  $("kwMissing").innerHTML = list(a.mots_cles_manquants).map(k => `<li><span class="chip no">${esc(k.mot_cle ?? k)}</span> ${esc(k.conseil || "")}</li>`).join("") || "<li>Aucun 🎉</li>";
+  $("tips").innerHTML = list(a.conseils).map(t => `<li>${esc(t)}</li>`).join("");
+  // Le titre de la page devient le nom du fichier PDF proposé à l'impression
+  document.title = fileBase();
+}
+
+// --- Exports ---
+function fileBase() {
+  const r = lastResult || {};
+  return `CV_${r.cv?.nom || "candidat"}_${r.poste_cible || "poste"}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w-]+/g, "_").slice(0, 80);
+}
+function download(name, content, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function cvText() {
+  const el = $("cv").cloneNode(true);
+  el.querySelectorAll("li").forEach(li => li.prepend("- "));
+  el.querySelectorAll("h1,h2,h3,p,li,div").forEach(n => n.append("\n"));
+  el.querySelectorAll("h2").forEach(n => n.prepend("\n"));
+  return el.textContent.replace(/\n{3,}/g, "\n\n").trim();
+}
+$("pdfBtn").onclick = () => window.print();
+$("txtBtn").onclick = () => download(fileBase() + ".txt", cvText(), "text/plain;charset=utf-8");
+$("copyBtn").onclick = async () => { await navigator.clipboard.writeText(cvText()); $("copyBtn").textContent = "Copié ✓"; setTimeout(() => $("copyBtn").textContent = "Copier le texte", 1500); };
+$("docBtn").onclick = () => {
+  const css = [...document.styleSheets[0].cssRules].map(r => r.cssText).filter(t => t.startsWith("#cv ")).join("\n").replace(/#cv /g, "");
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:10.5pt}${css}</style></head><body>${$("cv").innerHTML}</body></html>`;
+  download(fileBase() + ".doc", "﻿" + html, "application/msword");
+};
+</script>
+</body>
+</html>
