@@ -4,7 +4,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 
 const PORT = process.env.PORT || 3456;
 const DATA_DIR = path.join(__dirname, "data");
@@ -81,6 +81,56 @@ async function fetchJobAd(url) {
   const structured = extractJobPosting(html);
   const text = structured || htmlToText(html);
   return text.slice(0, 25000);
+}
+
+// ---------- Extraction du texte d'un fichier déposé (PDF, Word…) ----------
+// Outils intégrés à macOS, aucune dépendance : PDFKit (via JXA) et textutil.
+const MAX_UPLOAD = 15 * 1024 * 1024;
+const TEXTUTIL_EXT = new Set([".doc", ".docx", ".rtf", ".rtfd", ".odt", ".html", ".htm", ".webarchive", ".wordml"]);
+const PDF_JXA = 'function run(a){ObjC.import("PDFKit");var d=$.PDFDocument.alloc.initWithURL($.NSURL.fileURLWithPath(a[0]));return d.isNil()?"":d.string.js}';
+
+function run(cmd, args) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { maxBuffer: 20 * 1024 * 1024, timeout: 30000 }, (err, stdout, stderr) => {
+      if (err) return reject(new Error((stderr || err.message).trim().slice(0, 300)));
+      resolve(stdout);
+    });
+  });
+}
+
+function cleanText(t) {
+  return t.replace(/\r\n?/g, "\n").replace(/[ \t ]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+async function extractText(buffer, filename) {
+  const ext = path.extname(filename).toLowerCase();
+  if ([".txt", ".md", ".markdown", ".csv"].includes(ext)) return cleanText(buffer.toString("utf8"));
+  if (ext !== ".pdf" && !TEXTUTIL_EXT.has(ext)) {
+    throw new Error(`format ${ext || "inconnu"} non pris en charge (PDF, Word, RTF, ODT ou texte)`);
+  }
+  const tmp = path.join(os.tmpdir(), `cvgen-${process.pid}-${Date.now()}${ext}`);
+  fs.writeFileSync(tmp, buffer);
+  try {
+    const out = ext === ".pdf"
+      ? await run("osascript", ["-l", "JavaScript", "-e", PDF_JXA, tmp])
+      : await run("textutil", ["-convert", "txt", "-stdout", tmp]);
+    return cleanText(out);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+function readRaw(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on("data", c => {
+      size += c.length;
+      if (size > limit) { reject(new Error("Fichier trop lourd (15 Mo max).")); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
 }
 
 // ---------- Appel à Claude ----------
@@ -193,6 +243,21 @@ const server = http.createServer(async (req, res) => {
         const { profile = "" } = await readBody(req);
         fs.writeFileSync(PROFILE_FILE, profile);
         return send(res, 200, { ok: true });
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/extract") {
+      const filename = decodeURIComponent(req.headers["x-filename"] || "");
+      try {
+        const buffer = await readRaw(req, MAX_UPLOAD);
+        if (!buffer.length) throw new Error("fichier vide");
+        const text = await extractText(buffer, filename);
+        if (text.length < 20) {
+          throw new Error("aucun texte trouvé : le PDF est sans doute une image scannée");
+        }
+        return send(res, 200, { text, chars: text.length });
+      } catch (e) {
+        return send(res, 422, { error: `Lecture impossible de « ${filename || "fichier"} » (${e.message}).` });
       }
     }
 
