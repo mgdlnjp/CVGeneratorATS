@@ -3,7 +3,7 @@
 Génère un CV adapté à une annonce (lien ou texte), optimisé pour les ATS, avec ton abonnement Claude (CLI `claude`, pas de clé API).
 
 ## Lancer
-- Double-clic sur **Lancer CV Generator.command** : l'app s'ouvre dans sa propre fenêtre (sans onglets ni barre d'adresse) et s'arrête quand tu la fermes.
+- Double-clic sur **Lancer CV Generator.command** : l'app s'ouvre dans un onglet Google Chrome. Fermer la fenêtre Terminal (ou Ctrl+C) arrête le serveur.
 - Ou `npm start` puis http://localhost:3456
 
 ## Utilisation
