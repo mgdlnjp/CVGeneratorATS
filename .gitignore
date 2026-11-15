@@ -16,3 +16,6 @@ __pycache__/
 ios/Pods/
 android/build/
 android/.gradle/
+
+# Données personnelles (profil, historique des générations) : jamais sur GitHub
+data/
