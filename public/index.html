@@ -148,6 +148,10 @@
   ul.tips li { padding: 7px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: baseline; }
   ul.tips li:first-child { border-top: 0; }
   ul.tips .chip { flex: none; }
+  /* Mots-clés manquants : mot-clé au-dessus, explication en dessous sur toute la largeur */
+  #kwMissing li { flex-direction: column; align-items: flex-start; gap: 5px; }
+  #kwMissing .chip { max-width: 100%; overflow-wrap: anywhere; }
+  #kwMissing li > span:last-child:empty { display: none; }
 
   /* ---------- Canvas ---------- */
   #right { position: relative; overflow: auto; background-color: var(--canvas);
