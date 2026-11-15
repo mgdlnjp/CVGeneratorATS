@@ -145,7 +145,15 @@ Règles absolues :
 5. Rédige dans la langue de l'annonce.
 6. Puces d'expérience : verbe d'action + tâche + résultat chiffré quand le profil fournit le chiffre. 3 à 6 puces par poste récent, moins pour les anciens. Priorise ce qui correspond à l'annonce.
 7. Sections standard reconnues par les ATS uniquement. Pas de tableaux, pas d'icônes, pas de jauges de niveau.
-8. Le CV doit tenir sur 1 page (junior) à 2 pages max (senior).
+8. Le CV doit tenir sur UNE SEULE page A4, sans exception (police 10 pt, marges 15 mm, une colonne). Budget à respecter :
+   - environ 450 à 550 mots au total ;
+   - accroche : 2 à 3 lignes maximum ;
+   - compétences : 3 à 5 catégories, une ligne chacune ;
+   - 3 à 4 expériences détaillées maximum (les plus pertinentes pour l'annonce), 2 à 4 puces chacune, une puce = une ligne (deux au plus) ;
+   - expériences plus anciennes ou peu pertinentes : regroupées en une ligne chacune sans puce, ou omises ;
+   - formation : une ligne par diplôme, seulement les plus pertinents ;
+   - "autres" seulement s'il reste de la place.
+   Mieux vaut couper du contenu peu pertinent que de déborder sur une deuxième page.
 
 Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de bloc markdown), au format :
 {

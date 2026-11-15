@@ -188,25 +188,38 @@
   .rise { animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
 
   /* ---- Le CV : mise en page compatible ATS (1 colonne, texte réel, titres standard) — volontairement neutre ---- */
-  #cv { background:#fff; width:210mm; min-height:297mm; margin:0 auto; padding:16mm 17mm; box-shadow:0 2px 4px rgba(0,0,0,.05), 0 24px 48px -16px rgba(0,0,0,.22);
-        font-family: Calibri, Arial, Helvetica, sans-serif; font-size:10.5pt; line-height:1.35; color:#000; outline:none; border-radius: 2px; }
+  /* Les tailles dépendent de variables ajustées par fitA4() pour que tout tienne sur une page A4. */
+  #cv { --fs:10.5pt; --lh:1.35; --py:16mm; --px:17mm; --h2m:1.1em; --h3m:.65em;
+        background:#fff; width:210mm; min-height:297mm; margin:0; padding:var(--py) var(--px); box-shadow:0 2px 4px rgba(0,0,0,.05), 0 24px 48px -16px rgba(0,0,0,.22);
+        font-family: Calibri, Arial, Helvetica, sans-serif; font-size:var(--fs); line-height:var(--lh); color:#000; outline:none; border-radius: 2px; }
   #cv:focus { box-shadow: 0 0 0 2px var(--accent), 0 24px 48px -16px rgba(0,0,0,.22); }
-  #cv h1 { font-size:20pt; margin:0; }
-  #cv .titre { font-size:12.5pt; font-weight:600; margin:2px 0 4px; }
-  #cv .contact { font-size:9.5pt; margin-bottom:6px; }
-  #cv h2 { font-size:11.5pt; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #000; margin:12px 0 5px; padding-bottom:2px; }
-  #cv h3 { font-size:10.5pt; margin:7px 0 0; }
-  #cv .meta { font-size:9.5pt; margin:0 0 2px; }
-  #cv ul { margin:2px 0 4px; padding-left:16px; }
-  #cv li { margin:1px 0; }
-  #cv p { margin:2px 0; }
+  #cv h1 { font-size:1.9em; line-height:1.15; margin:0; }
+  #cv .titre { font-size:1.19em; font-weight:600; margin:.15em 0 .3em; }
+  #cv .contact { font-size:.9em; margin-bottom:.4em; }
+  #cv h2 { font-size:1.1em; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #000; margin:var(--h2m) 0 .35em; padding-bottom:.15em; }
+  #cv h3 { font-size:1em; margin:var(--h3m) 0 0; }
+  #cv .meta { font-size:.9em; margin:0 0 .15em; }
+  #cv ul { margin:.15em 0 .3em; padding-left:1.4em; }
+  #cv li { margin:.08em 0; }
+  #cv p { margin:.15em 0; }
+
+  /* Feuille A4 : taille réelle, réduite à l'écran si la place manque (sans changer la mise en page) */
+  .paper-frame { position: relative; width: 100%; }
+  .paper { position: relative; width: 210mm; margin: 0 auto; transform-origin: top left; }
+  .paper.scaled { margin: 0; }
+  .limit { position: absolute; left: -8px; right: -8px; top: 297mm; border-top: 2px dashed var(--bad); pointer-events: none; }
+  .limit span { position: absolute; right: 8px; top: 4px; font: 600 11px "Geist", sans-serif; color: #fff; background: var(--bad); padding: 2px 8px; border-radius: 999px; }
+  .fit { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 999px; }
+  .fit.ok { background: var(--ok-soft); color: var(--ok); }
+  .fit.no { background: var(--bad-soft); color: var(--bad); }
+  .btn.warn { border-color: var(--bad); color: var(--bad); }
 
   @media (max-width: 1100px) {
     .app { grid-template-columns: minmax(0, 1fr); height: auto; }
     #left { border-right: 0; border-bottom: 1px solid var(--line); }
     .scroll { overflow: visible; }
     #right { overflow: visible; min-height: 70vh; }
-    #cv, .skeleton { width: 100%; padding: 10mm 8mm; min-height: 0; }
+    .skeleton { width: 100%; padding: 10mm 8mm; min-height: 0; }
   }
   @media (max-width: 520px) {
     .brand, .scroll, .foot { padding-left: 16px; padding-right: 16px; }
@@ -224,7 +237,12 @@
     .app { display:block; height:auto; }
     #right { overflow: visible; background: #fff; }
     .stage { padding: 0; }
-    #cv { box-shadow:none; margin:0; width:auto; min-height:0; border-radius: 0; }
+    .paper-frame { height: auto !important; }
+    .paper { transform: none !important; width: 210mm; margin: 0; }
+    .limit { display: none !important; }
+    .rise { animation: none !important; opacity: 1 !important; }
+    #cv { box-shadow:none; margin:0; width:210mm; min-height:0; border-radius: 0; }
+    #cv.fits { height: 297mm; overflow: hidden; } /* évite une 2e page blanche due aux arrondis */
   }
 </style>
 </head>
@@ -336,6 +354,8 @@
         <button class="btn" id="txtBtn"><svg class="i"><use href="#i-txt"/></svg>Texte</button>
       </div>
       <div class="grp"><button class="btn" id="copyBtn"><svg class="i"><use href="#i-copy"/></svg><span>Copier</span></button></div>
+      <span class="fit ok" id="fitBadge"></span>
+      <button class="btn warn" id="condenseBtn" hidden><svg class="i"><use href="#i-spark"/></svg>Condenser</button>
       <span class="hint"><svg class="i"><use href="#i-pen"/></svg>Clique dans le CV pour le corriger</span>
     </div>
     <div class="stage" id="cvWrap">
@@ -511,12 +531,12 @@ function showSkeleton() {
     <i class="sec"></i><i style="width:60%"></i><i style="width:40%"></i></div>`;
 }
 
-$("generateBtn").onclick = async () => {
+async function generate(extra = "") {
   const btn = $("generateBtn");
   const previous = $("cvWrap").innerHTML, prevToolbar = $("toolbar").hidden;
   let timer;
   try {
-    btn.disabled = true;
+    btn.disabled = true; $("condenseBtn").disabled = true;
     if (!$("profile").value.trim()) throw new Error("Ajoute d'abord ton CV de base (étape 1).");
     await api("/api/profile", { profile: $("profile").value });
     const url = $("jobUrl").value.trim();
@@ -531,7 +551,7 @@ $("generateBtn").onclick = async () => {
       if ($("elapsed")) $("elapsed").textContent = s + " s";
     };
     tick(); timer = setInterval(tick, 1000);
-    lastResult = await api("/api/generate", { profile: $("profile").value, jobText: $("jobText").value, instructions: $("instructions").value });
+    lastResult = await api("/api/generate", { profile: $("profile").value, jobText: $("jobText").value, instructions: [$("instructions").value, extra].filter(s => s.trim()).join("\n") });
     clearInterval(timer);
     render(lastResult);
     setStatus($("genStatus"), "CV généré", "ok");
@@ -539,8 +559,9 @@ $("generateBtn").onclick = async () => {
     clearInterval(timer);
     if ($("cvWrap").querySelector(".skeleton")) { $("cvWrap").innerHTML = previous; $("toolbar").hidden = prevToolbar; }
     setStatus($("genStatus"), e.message, "err");
-  } finally { btn.disabled = false; }
-};
+  } finally { btn.disabled = false; $("condenseBtn").disabled = false; }
+}
+$("generateBtn").onclick = () => generate();
 document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !$("generateBtn").disabled) { e.preventDefault(); $("generateBtn").click(); }
 });
@@ -582,8 +603,13 @@ function render(r) {
   for (const s of list(cv.autres)) if (has(s.elements))
     h += `<h2>${esc(s.titre)}</h2><ul>${list(s.elements).filter(has).map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
 
-  $("cvWrap").innerHTML = `<article id="cv" class="rise" contenteditable="true" spellcheck="true">${h}</article>`;
+  $("cvWrap").innerHTML = `<div class="paper-frame" id="paperFrame"><div class="paper rise" id="paper">
+    <article id="cv" contenteditable="true" spellcheck="true">${h}</article>
+    <div class="limit" id="limit" hidden><span>Fin de la page A4</span></div></div></div>`;
   $("toolbar").hidden = false;
+  $("cv").addEventListener("input", () => { clearTimeout(refitTimer); refitTimer = setTimeout(fitA4, 300); });
+  fitA4();
+  if (document.fonts) document.fonts.ready.then(fitA4);
 
   const a = r.analyse_ats || {};
   $("analyse").hidden = false;
@@ -603,6 +629,51 @@ function render(r) {
   // Le titre de la page devient le nom du fichier PDF proposé à l'impression
   document.title = fileBase();
 }
+
+// --- Tenir sur une page A4 ---
+// On resserre progressivement police, interligne, marges et espacements jusqu'à ce que le CV tienne.
+const A4_PX = 297 * 96 / 25.4;
+const FIT_STEPS = 12;
+let refitTimer, overflowRatio = 0;
+function applyLevel(cv, i) {
+  const t = i / (FIT_STEPS - 1), L = (a, b) => a + (b - a) * t;
+  cv.style.setProperty("--fs", L(10.5, 8.5).toFixed(2) + "pt");
+  cv.style.setProperty("--lh", L(1.35, 1.17).toFixed(3));
+  cv.style.setProperty("--py", L(16, 9).toFixed(1) + "mm");
+  cv.style.setProperty("--px", L(17, 11).toFixed(1) + "mm");
+  cv.style.setProperty("--h2m", L(1.1, .5).toFixed(2) + "em");
+  cv.style.setProperty("--h3m", L(.65, .25).toFixed(2) + "em");
+}
+function fitA4() {
+  const cv = $("cv"); if (!cv) return;
+  cv.style.minHeight = "0";
+  let i = 0;
+  for (; i < FIT_STEPS; i++) { applyLevel(cv, i); if (cv.offsetHeight <= A4_PX) break; }
+  const fits = i < FIT_STEPS;
+  if (!fits) i = FIT_STEPS - 1;
+  overflowRatio = fits ? 0 : cv.offsetHeight / A4_PX - 1;
+  cv.style.minHeight = "";
+  cv.classList.toggle("fits", fits);
+  $("limit").hidden = fits;
+  const pt = parseFloat(cv.style.getPropertyValue("--fs")).toFixed(1).replace(".0", "").replace(".", ",");
+  const badge = $("fitBadge");
+  badge.className = "fit " + (fits ? "ok" : "no");
+  badge.innerHTML = fits ? `${icon("check")}1 page A4 · police ${pt} pt` : `Dépasse la page A4 de ${Math.ceil(overflowRatio * 100)} %`;
+  $("condenseBtn").hidden = fits;
+  fitScreen();
+}
+// À l'écran, la feuille A4 est réduite si la colonne est trop étroite (la mise en page réelle ne change pas)
+function fitScreen() {
+  const frame = $("paperFrame"), paper = $("paper"); if (!frame) return;
+  paper.style.transform = ""; paper.classList.remove("scaled");
+  const s = Math.min(1, frame.clientWidth / paper.offsetWidth);
+  if (s < 1) { paper.classList.add("scaled"); paper.style.transform = `scale(${s})`; }
+  frame.style.height = paper.offsetHeight * s + "px";
+}
+window.addEventListener("resize", () => { clearTimeout(refitTimer); refitTimer = setTimeout(fitScreen, 100); });
+$("condenseBtn").onclick = () => generate(
+  `IMPORTANT : la version précédente dépassait la page A4 de ${Math.ceil(overflowRatio * 100) + 5} % même en petite police. ` +
+  `Sois nettement plus concis : moins d'expériences détaillées, moins de puces, puces plus courtes, accroche de 2 lignes.`);
 
 // --- Exports ---
 function fileBase() {
@@ -625,9 +696,10 @@ function cvCss() {
   const out = [];
   for (const sheet of document.styleSheets) {
     let rules; try { rules = sheet.cssRules; } catch (_) { continue; } // feuilles externes (polices) illisibles
-    for (const r of rules) if (r.cssText.startsWith("#cv ")) out.push(r.cssText.replace(/#cv /g, ""));
+    for (const r of rules) if (r.cssText.startsWith("#cv ") && !r.cssText.startsWith("#cv {")) out.push(r.cssText.replace(/#cv /g, ""));
   }
-  return out.join("\n");
+  const cs = $("cv").style;
+  return out.join("\n").replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n) || m);
 }
 $("pdfBtn").onclick = () => window.print();
 $("txtBtn").onclick = () => download(fileBase() + ".txt", cvText(), "text/plain;charset=utf-8");
@@ -637,7 +709,7 @@ $("copyBtn").onclick = async () => {
   span.textContent = "Copié"; setTimeout(() => span.textContent = "Copier", 1500);
 };
 $("docBtn").onclick = () => {
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:10.5pt}${cvCss()}</style></head><body>${$("cv").innerHTML}</body></html>`;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>body{font-family:Calibri,Arial,sans-serif;font-size:${$("cv").style.getPropertyValue("--fs") || "10.5pt"};line-height:${$("cv").style.getPropertyValue("--lh") || 1.35}}${cvCss()}</style></head><body>${$("cv").innerHTML}</body></html>`;
   download(fileBase() + ".doc", "﻿" + html, "application/msword");
 };
 </script>
