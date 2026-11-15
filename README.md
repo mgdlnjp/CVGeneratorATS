@@ -3,7 +3,8 @@
 Génère un CV adapté à une annonce (lien ou texte), optimisé pour les ATS, avec ton abonnement Claude (CLI `claude`, pas de clé API).
 
 ## Lancer
-- Double-clic sur **Lancer CV Generator.command**, ou `npm start` puis http://localhost:3456
+- Double-clic sur **Lancer CV Generator.command** : l'app s'ouvre dans sa propre fenêtre (sans onglets ni barre d'adresse) et s'arrête quand tu la fermes.
+- Ou `npm start` puis http://localhost:3456
 
 ## Utilisation
 1. Glisse ton CV (PDF, Word .docx/.doc, RTF, ODT ou .txt) dans l'étape 1, ou colle son texte. Il est sauvegardé dans `data/profil.txt`.
