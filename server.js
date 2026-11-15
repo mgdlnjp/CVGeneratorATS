@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3456;
 const DATA_DIR = path.join(__dirname, "data");
 const PROFILE_FILE = path.join(DATA_DIR, "profil.txt");
 const HISTORY_DIR = path.join(DATA_DIR, "historique");
+const LAST_FILE = path.join(DATA_DIR, "dernier-cv.json"); // dernier CV affiché (avec corrections manuelles)
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 const MODEL = process.env.CV_MODEL || ""; // ex: "opus" ou "sonnet" ; vide = modèle par défaut
 
@@ -250,6 +251,20 @@ const server = http.createServer(async (req, res) => {
       if (req.method === "POST") {
         const { profile = "" } = await readBody(req);
         fs.writeFileSync(PROFILE_FILE, profile);
+        return send(res, 200, { ok: true });
+      }
+    }
+
+    if (url.pathname === "/api/last") {
+      if (req.method === "GET") {
+        let last = {};
+        try { last = JSON.parse(fs.readFileSync(LAST_FILE, "utf8")); } catch (_) { /* pas encore de CV */ }
+        return send(res, 200, last);
+      }
+      if (req.method === "POST") {
+        const last = await readBody(req);
+        if (!last || typeof last.result !== "object") return send(res, 400, { error: "CV manquant." });
+        fs.writeFileSync(LAST_FILE, JSON.stringify(last, null, 2));
         return send(res, 200, { ok: true });
       }
     }

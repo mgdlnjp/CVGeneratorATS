@@ -554,6 +554,7 @@ async function generate(extra = "") {
     lastResult = await api("/api/generate", { profile: $("profile").value, jobText: $("jobText").value, instructions: [$("instructions").value, extra].filter(s => s.trim()).join("\n") });
     clearInterval(timer);
     render(lastResult);
+    saveLast();
     setStatus($("genStatus"), "CV généré", "ok");
   } catch (e) {
     clearInterval(timer);
@@ -607,7 +608,10 @@ function render(r) {
     <article id="cv" contenteditable="true" spellcheck="true">${h}</article>
     <div class="limit" id="limit" hidden><span>Fin de la page A4</span></div></div></div>`;
   $("toolbar").hidden = false;
-  $("cv").addEventListener("input", () => { clearTimeout(refitTimer); refitTimer = setTimeout(fitA4, 300); });
+  $("cv").addEventListener("input", () => {
+    clearTimeout(refitTimer); refitTimer = setTimeout(fitA4, 300);
+    clearTimeout(saveTimer); saveTimer = setTimeout(saveLast, 800);
+  });
   fitA4();
   if (document.fonts) document.fonts.ready.then(fitA4);
 
@@ -629,6 +633,30 @@ function render(r) {
   // Le titre de la page devient le nom du fichier PDF proposé à l'impression
   document.title = fileBase();
 }
+
+// --- Persistance du dernier CV (data/dernier-cv.json, sur le Mac) ---
+let saveTimer;
+function saveLast() {
+  if (!lastResult || !$("cv")) return;
+  api("/api/last", {
+    result: lastResult,
+    html: $("cv").innerHTML, // inclut les corrections faites à la main
+    jobUrl: $("jobUrl").value, jobText: $("jobText").value, instructions: $("instructions").value,
+    savedAt: new Date().toISOString(),
+  }).catch(e => setStatus($("genStatus"), "CV non sauvegardé : " + e.message, "err"));
+}
+api("/api/last").then(last => {
+  if (!last.result) return;
+  lastResult = last.result;
+  $("jobUrl").value = last.jobUrl || ""; fetchedUrl = last.jobUrl || "";
+  $("jobText").value = last.jobText || "";
+  $("instructions").value = last.instructions || "";
+  render(lastResult);
+  if (last.html) { $("cv").innerHTML = last.html; fitA4(); }
+  refreshSteps();
+  const when = last.savedAt ? new Date(last.savedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "";
+  setStatus($("genStatus"), `Dernier CV restauré${when ? " (" + when + ")" : ""}`, "ok");
+}).catch(() => {});
 
 // --- Tenir sur une page A4 ---
 // On resserre progressivement police, interligne, marges et espacements jusqu'à ce que le CV tienne.
