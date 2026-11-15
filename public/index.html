@@ -148,10 +148,21 @@
   ul.tips li { padding: 7px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: baseline; }
   ul.tips li:first-child { border-top: 0; }
   ul.tips .chip { flex: none; }
-  /* Mots-clés manquants : mot-clé au-dessus, explication en dessous sur toute la largeur */
-  #kwMissing li { flex-direction: column; align-items: flex-start; gap: 5px; }
-  #kwMissing .chip { max-width: 100%; overflow-wrap: anywhere; }
-  #kwMissing li > span:last-child:empty { display: none; }
+  /* Mots-clés manquants : case à cocher + mot-clé, explication dessous, précision optionnelle */
+  #kwMissing li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: start; padding: 9px 0; }
+  #kwMissing li.none { display: block; }
+  #kwMissing input[type=checkbox] { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  #kwMissing .kw-body { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+  #kwMissing label { cursor: pointer; max-width: 100%; }
+  #kwMissing .chip { display: inline-block; max-width: 100%; overflow-wrap: anywhere; transition: background .15s, color .15s; }
+  #kwMissing li.on .chip.no { background: var(--accent-soft); color: var(--accent); }
+  #kwMissing .kw-tip:empty { display: none; }
+  #kwMissing .kw-note { width: 100%; font-size: 12.5px; padding: 7px 10px; }
+  .integrate { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .integrate .btn { width: 100%; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .integrate .btn:hover { filter: brightness(1.08); background: var(--accent); }
+  .integrate .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .integrate p { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
 
   /* ---------- Canvas ---------- */
   #right { position: relative; overflow: auto; background-color: var(--canvas);
@@ -333,8 +344,12 @@
         </div>
         <label class="lbl">Mots-clés couverts</label>
         <div class="chips" id="kwOk"></div>
-        <label class="lbl">Mots-clés manquants <span style="color:var(--muted);font-weight:400">· absents de ton profil, donc non ajoutés</span></label>
+        <label class="lbl">Mots-clés manquants <span style="color:var(--muted);font-weight:400">· coche ceux que tu maîtrises pour les ajouter</span></label>
         <ul class="tips" id="kwMissing"></ul>
+        <div class="integrate" id="integrateBar" hidden>
+          <button class="btn" id="integrateBtn" disabled><svg class="i"><use href="#i-spark"/></svg><span>Coche les mots-clés que tu maîtrises</span></button>
+          <p>Coche uniquement ce que tu sais vraiment faire : Claude l'ajoute au CV sans inventer d'expérience. Tes corrections manuelles sont conservées.</p>
+        </div>
         <label class="lbl">Conseils</label>
         <ul class="tips" id="tips"></ul>
       </section>
@@ -521,9 +536,9 @@ window.addEventListener("drop", e => {
 });
 
 // --- Génération ---
-function showSkeleton() {
+function showSkeleton(label = "Claude adapte ton CV") {
   $("toolbar").hidden = true;
-  $("cvWrap").innerHTML = `<div class="skeleton-label"><span class="spin"></span>Claude adapte ton CV <span class="t" id="elapsed">0 s</span></div>
+  $("cvWrap").innerHTML = `<div class="skeleton-label"><span class="spin"></span>${esc(label)} <span class="t" id="elapsed">0 s</span></div>
     <div class="skeleton"><i class="h"></i><i style="width:35%"></i><i style="width:70%"></i>
     <i class="sec"></i><i></i><i></i><i style="width:80%"></i>
     <i class="sec"></i><i style="width:50%"></i><i></i><i style="width:90%"></i><i></i><i style="width:60%"></i>
@@ -533,7 +548,7 @@ function showSkeleton() {
 
 async function generate(extra = "") {
   const btn = $("generateBtn");
-  const previous = $("cvWrap").innerHTML, prevToolbar = $("toolbar").hidden;
+  const previous = $("cvWrap").innerHTML, prevToolbar = $("toolbar").hidden, previousCv = $("cv")?.innerHTML;
   let timer;
   try {
     btn.disabled = true; $("condenseBtn").disabled = true;
@@ -558,7 +573,10 @@ async function generate(extra = "") {
     setStatus($("genStatus"), "CV généré", "ok");
   } catch (e) {
     clearInterval(timer);
-    if ($("cvWrap").querySelector(".skeleton")) { $("cvWrap").innerHTML = previous; $("toolbar").hidden = prevToolbar; }
+    if ($("cvWrap").querySelector(".skeleton")) {
+      if (lastResult) { renderCv(lastResult); $("cv").innerHTML = previousCv; fitA4(); }
+      else { $("cvWrap").innerHTML = previous; $("toolbar").hidden = prevToolbar; }
+    }
     setStatus($("genStatus"), e.message, "err");
   } finally { btn.disabled = false; $("condenseBtn").disabled = false; }
 }
@@ -567,7 +585,9 @@ document.addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !$("generateBtn").disabled) { e.preventDefault(); $("generateBtn").click(); }
 });
 
-function render(r) {
+function render(r) { renderCv(r); renderAnalysis(r); }
+
+function renderCv(r) {
   const cv = r.cv || {}, L = LABELS[r.langue] || LABELS.fr, c = cv.contact || {};
   const join = (arr, sep) => arr.filter(has).map(esc).join(sep);
   let h = `<h1>${esc(cv.nom)}</h1>`;
@@ -614,7 +634,11 @@ function render(r) {
   });
   fitA4();
   if (document.fonts) document.fonts.ready.then(fitA4);
+  // Le titre de la page devient le nom du fichier PDF proposé à l'impression
+  document.title = fileBase();
+}
 
+function renderAnalysis(r) {
   const a = r.analyse_ats || {};
   $("analyse").hidden = false;
   const s = Math.max(0, Math.min(100, Number(a.score_estime) || 0));
@@ -627,12 +651,78 @@ function render(r) {
   requestAnimationFrame(() => requestAnimationFrame(() => { ring.style.strokeDashoffset = 201.06 * (1 - s / 100); }));
   $("target").textContent = [r.poste_cible, r.entreprise].filter(has).join(" · ");
   $("kwOk").innerHTML = list(a.mots_cles_couverts).map(k => `<span class="chip ok">${esc(k)}</span>`).join("") || '<span class="chip">—</span>';
-  $("kwMissing").innerHTML = list(a.mots_cles_manquants).map(k => `<li><span class="chip no">${esc(k.mot_cle ?? k)}</span><span>${esc(k.conseil || "")}</span></li>`).join("") || "<li>Aucun, tout est couvert.</li>";
+  const missing = list(a.mots_cles_manquants).map(k => ({ mot_cle: String(k?.mot_cle ?? k ?? "").trim(), conseil: k?.conseil || "" })).filter(k => k.mot_cle);
+  $("kwMissing").innerHTML = missing.map((k, i) => `<li data-kw="${esc(k.mot_cle)}">
+      <input type="checkbox" id="kw${i}">
+      <div class="kw-body">
+        <label for="kw${i}"><span class="chip no">${esc(k.mot_cle)}</span></label>
+        <span class="kw-tip">${esc(k.conseil)}</span>
+        <input type="text" class="kw-note" placeholder="Où / comment tu l'as utilisé ? (optionnel)" aria-label="Précision pour ${esc(k.mot_cle)}" hidden>
+      </div></li>`).join("") || '<li class="none">Aucun, tout est couvert.</li>';
+  $("integrateBar").hidden = !missing.length;
+  updateIntegrateBtn();
   $("tips").innerHTML = list(a.conseils).map(t => `<li>${esc(t)}</li>`).join("");
   $("analyse").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  // Le titre de la page devient le nom du fichier PDF proposé à l'impression
-  document.title = fileBase();
 }
+
+// --- Intégrer les mots-clés manquants cochés ---
+const checkedKeywords = () => [...$("kwMissing").querySelectorAll("li[data-kw]")]
+  .filter(li => li.querySelector("input[type=checkbox]").checked)
+  .map(li => ({ mot_cle: li.dataset.kw, note: li.querySelector(".kw-note").value.trim() }));
+function updateIntegrateBtn() {
+  const n = checkedKeywords().length;
+  $("integrateBtn").disabled = !n;
+  $("integrateBtn").querySelector("span").textContent = n
+    ? `Intégrer ${n} mot${n > 1 ? "s" : ""}-clé${n > 1 ? "s" : ""} au CV`
+    : "Coche les mots-clés que tu maîtrises";
+}
+$("kwMissing").addEventListener("change", e => {
+  if (e.target.type !== "checkbox") return;
+  const li = e.target.closest("li"), note = li.querySelector(".kw-note");
+  li.classList.toggle("on", e.target.checked);
+  note.hidden = !e.target.checked;
+  if (e.target.checked) note.focus();
+  updateIntegrateBtn();
+});
+$("kwMissing").addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.classList.contains("kw-note") && !$("integrateBtn").disabled) { e.preventDefault(); integrate(); }
+});
+
+async function integrate() {
+  const picks = checkedKeywords();
+  if (!picks.length || !lastResult || !$("cv")) return;
+  const btns = [$("integrateBtn"), $("generateBtn"), $("condenseBtn")];
+  const html = $("cv").innerHTML, text = cvText();
+  let timer;
+  btns.forEach(b => b.disabled = true);
+  $("kwMissing").querySelectorAll("input").forEach(i => i.disabled = true);
+  const label = `Claude intègre ${picks.length} mot${picks.length > 1 ? "s" : ""}-clé${picks.length > 1 ? "s" : ""}`;
+  try {
+    const t0 = Date.now();
+    showSkeleton(label);
+    const tick = () => {
+      const s = Math.round((Date.now() - t0) / 1000);
+      setStatus($("genStatus"), `${label} · ${s} s`, "busy");
+      if ($("elapsed")) $("elapsed").textContent = s + " s";
+    };
+    tick(); timer = setInterval(tick, 1000);
+    const res = await api("/api/integrate", { profile: $("profile").value, jobText: $("jobText").value, cvText: text, current: lastResult, keywords: picks });
+    clearInterval(timer);
+    lastResult = res;
+    render(res);
+    saveLast();
+    setStatus($("genStatus"), `${picks.map(k => k.mot_cle).join(", ")} : intégré${picks.length > 1 ? "s" : ""} au CV`, "ok");
+  } catch (e) {
+    clearInterval(timer);
+    renderCv(lastResult); $("cv").innerHTML = html; fitA4(); // on remet le CV tel qu'il était
+    $("kwMissing").querySelectorAll("input").forEach(i => i.disabled = false);
+    setStatus($("genStatus"), e.message, "err");
+  } finally {
+    $("generateBtn").disabled = false; $("condenseBtn").disabled = false;
+    updateIntegrateBtn();
+  }
+}
+$("integrateBtn").onclick = integrate;
 
 // --- Persistance du dernier CV (data/dernier-cv.json, sur le Mac) ---
 let saveTimer;

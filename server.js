@@ -135,7 +135,7 @@ function readRaw(req, limit) {
 }
 
 // ---------- Appel à Claude ----------
-const SYSTEM_PROMPT = `Tu es un expert en recrutement, en rédaction de CV et en optimisation pour les ATS (Applicant Tracking Systems : Workday, Taleo, SmartRecruiters, Greenhouse, Lever, Teamtailor, Welcome Kit, etc.).
+const GENERATE_RULES = `Tu es un expert en recrutement, en rédaction de CV et en optimisation pour les ATS (Applicant Tracking Systems : Workday, Taleo, SmartRecruiters, Greenhouse, Lever, Teamtailor, Welcome Kit, etc.).
 Ta mission : à partir du PROFIL du candidat et d'une ANNONCE, produire le CV le plus pertinent possible pour cette annonce.
 
 Règles absolues :
@@ -154,9 +154,10 @@ Règles absolues :
    - expériences plus anciennes ou peu pertinentes : regroupées en une ligne chacune sans puce, ou omises ;
    - formation : une ligne par diplôme, seulement les plus pertinents ;
    - "autres" seulement s'il reste de la place.
-   Mieux vaut couper du contenu peu pertinent que de déborder sur une deuxième page.
+   Mieux vaut couper du contenu peu pertinent que de déborder sur une deuxième page.`;
 
-Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de bloc markdown), au format :
+// Format de réponse commun à la génération et à l'intégration de mots-clés
+const JSON_FORMAT = `Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de bloc markdown), au format :
 {
   "langue": "fr" | "en" | ...,
   "poste_cible": "intitulé exact de l'annonce",
@@ -182,7 +183,25 @@ Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de bloc 
 }
 Les titres des sections du CV seront générés par l'application selon "langue". Laisse vides ("" ou []) les champs sans information.`;
 
-function runClaude(userPrompt) {
+const SYSTEM_PROMPT = `${GENERATE_RULES}\n\n${JSON_FORMAT}`;
+
+// Intégration de mots-clés que le candidat a cochés (il confirme les maîtriser)
+const INTEGRATE_PROMPT = `Tu es un expert en rédaction de CV et en optimisation pour les ATS.
+On te donne le CV ACTUEL d'un candidat (déjà adapté à une annonce, et peut-être corrigé à la main par lui), son PROFIL complet, l'ANNONCE, et une liste de MOTS-CLÉS de l'annonce que le candidat a cochés : il confirme les maîtriser réellement.
+Ta mission : renvoyer le CV mis à jour avec ces mots-clés intégrés.
+
+Règles absolues :
+1. Pars du CV ACTUEL et conserve-le au maximum (contenu, formulations, ordre, corrections du candidat). Ne modifie que ce qui est nécessaire pour intégrer les mots-clés.
+2. Reprends chaque mot-clé coché à l'identique (même orthographe que l'annonce), au moins une fois dans le CV.
+3. Place chaque mot-clé à l'endroit le plus naturel : dans "competences" (catégorie adaptée) en priorité, et dans l'accroche s'il est central pour le poste.
+4. Ne l'insère dans une puce d'expérience que si la précision du candidat ou le profil indique clairement où il l'a utilisé. N'invente JAMAIS d'expérience, de chiffre, de résultat ni de contexte.
+5. Le CV doit toujours tenir sur UNE page A4 : si tu ajoutes, raccourcis ailleurs le contenu le moins pertinent.
+6. Mets à jour "analyse_ats" : les mots-clés intégrés passent dans "mots_cles_couverts" et sortent de "mots_cles_manquants" ; recalcule "score_estime" ; garde les autres mots-clés manquants et adapte les conseils.
+7. Garde la langue, le "poste_cible" et l'"entreprise" du CV actuel.
+
+${JSON_FORMAT}`;
+
+function runClaude(userPrompt, systemPrompt = SYSTEM_PROMPT) {
   return new Promise((resolve, reject) => {
     const args = [
       "-p",
@@ -190,7 +209,7 @@ function runClaude(userPrompt) {
       "--tools", "",
       "--no-session-persistence",
       "--strict-mcp-config",
-      "--system-prompt", SYSTEM_PROMPT,
+      "--system-prompt", systemPrompt,
     ];
     if (MODEL) args.push("--model", MODEL);
     const child = spawn(CLAUDE_BIN, args, { cwd: os.tmpdir(), env: process.env });
@@ -313,6 +332,35 @@ Produis maintenant le JSON demandé.`;
       const result = parseModelJson(raw);
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       fs.writeFileSync(path.join(HISTORY_DIR, `${stamp}.json`), JSON.stringify({ jobText, result }, null, 2));
+      return send(res, 200, result);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/integrate") {
+      const { profile = "", jobText = "", cvText = "", current = null, keywords = [] } = await readBody(req);
+      const picks = (Array.isArray(keywords) ? keywords : [])
+        .map(k => ({ mot_cle: String(k?.mot_cle || "").trim(), note: String(k?.note || "").trim() }))
+        .filter(k => k.mot_cle);
+      if (!picks.length) return send(res, 400, { error: "Coche au moins un mot-clé." });
+      if (!current || typeof current !== "object") return send(res, 400, { error: "Aucun CV à modifier : génère d'abord un CV." });
+
+      const prompt = `=== PROFIL DU CANDIDAT ===
+${profile}
+
+=== ANNONCE ===
+${jobText}
+
+=== CV ACTUEL (JSON) ===
+${JSON.stringify(current)}
+${cvText.trim() ? `\n=== CV ACTUEL TEL QU'AFFICHÉ (texte, avec les corrections manuelles du candidat ; il fait foi s'il diffère du JSON) ===\n${cvText}\n` : ""}
+=== MOTS-CLÉS À INTÉGRER (le candidat confirme les maîtriser) ===
+${picks.map(k => `- ${k.mot_cle}${k.note ? ` — précision du candidat : ${k.note}` : ""}`).join("\n")}
+
+Produis maintenant le JSON demandé.`;
+
+      const raw = await runClaude(prompt, INTEGRATE_PROMPT);
+      const result = parseModelJson(raw);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      fs.writeFileSync(path.join(HISTORY_DIR, `${stamp}-integration.json`), JSON.stringify({ jobText, keywords: picks, result }, null, 2));
       return send(res, 200, result);
     }
 

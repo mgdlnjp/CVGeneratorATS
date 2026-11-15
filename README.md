@@ -11,6 +11,8 @@ Génère un CV adapté à une annonce (lien ou texte), optimisé pour les ATS, a
 2. Colle le lien de l'annonce, ou dépose le PDF / Word de l'offre → **Générer le CV adapté** (ou ⌘↵).
 3. Relis/corrige directement dans l'aperçu, puis exporte en PDF / Word / texte. Le CV tient toujours sur **une page A4** : la police (de 10,5 à 8,5 pt), l'interligne et les marges s'ajustent automatiquement ; si ça déborde encore, le bouton **Condenser** demande à Claude une version plus courte.
 
+4. Dans l'analyse ATS, coche les **mots-clés manquants que tu maîtrises vraiment** (avec, si tu veux, une précision sur où tu les as utilisés) puis clique sur **Intégrer au CV** : Claude les ajoute au CV actuel, en gardant tes corrections, sans inventer d'expérience et en restant sur une page A4.
+
 Chaque génération est archivée dans `data/historique/`. Le dernier CV affiché (avec tes corrections manuelles, l'annonce et les consignes) est gardé dans `data/dernier-cv.json` et réapparaît quand tu recharges la page.
 Modèle : `CV_MODEL=opus npm start` (par défaut : modèle par défaut de Claude Code).
 Si un site bloque la lecture (LinkedIn connecté, etc.), colle le texte de l'annonce ou dépose-la en PDF.
