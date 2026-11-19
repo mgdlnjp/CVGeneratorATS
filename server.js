@@ -258,6 +258,14 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
+    // Logo, favicons et manifeste (liste fermée : rien d'autre n'est servi depuis public/).
+    const ICONS = { "/logo.svg": "image/svg+xml", "/favicon.svg": "image/svg+xml", "/favicon.ico": "image/x-icon", "/favicon-32.png": "image/png",
+      "/apple-touch-icon.png": "image/png", "/icon-192.png": "image/png", "/icon-512.png": "image/png", "/icon-maskable-512.png": "image/png",
+      "/site.webmanifest": "application/manifest+json" };
+    if (req.method === "GET" && ICONS[url.pathname]) {
+      return send(res, 200, fs.readFileSync(path.join(__dirname, "public", url.pathname.slice(1))), ICONS[url.pathname]);
+    }
+
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       return send(res, 200, fs.readFileSync(path.join(__dirname, "public", "index.html")), "text/html; charset=utf-8");
     }

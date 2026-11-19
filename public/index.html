@@ -46,6 +46,7 @@
   .app > * { min-width: 0; }
   #left { display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); min-height: 0; }
   .brand { display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+  img.logo { width: 34px; height: 34px; display: block; background: none; }
   .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: var(--bg); display: grid; place-items: center;
           font: italic 20px/1 "Instrument Serif", Georgia, serif; letter-spacing: -.02em; }
   .brand h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
@@ -263,6 +264,11 @@
     #cv.fits { height: 297mm; overflow: hidden; } /* évite une 2e page blanche due aux arrondis */
   }
 </style>
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#3A37E0">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -284,7 +290,7 @@
 <div class="app">
   <aside id="left">
     <div class="brand">
-      <div class="logo">Cv</div>
+      <img class="logo" src="logo.svg" alt="" width="34" height="34">
       <div>
         <h1>CV Generator ATS</h1>
         <p>Ton CV, réécrit pour chaque annonce</p>
